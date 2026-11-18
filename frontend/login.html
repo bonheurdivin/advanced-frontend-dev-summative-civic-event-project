@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><title>Sign in – CivicEvents+</title></head>
+<body class="min-h-screen bg-slate-50 font-sans text-ink">
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:m-2 focus:rounded focus:bg-white focus:p-2">Skip to main content</a>
+<main id="main" class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
+  <p class="mb-6 text-2xl font-bold">CivicEvents<span class="text-civic">+</span></p>
+  <h1 class="text-3xl font-bold">Sign in</h1>
+  <p class="mt-1 text-slate-700">Find city events, announcements and services.</p>
+  <div id="form-error" role="alert" class="mt-4 hidden rounded-lg border border-red-700 bg-red-50 p-3 text-red-900"></div>
+  <form id="login-form" class="mt-6 space-y-4" novalidate>
+    <div><label for="email" class="font-bold">Email</label>
+      <input id="email" type="email" autocomplete="email" aria-describedby="email-error" class="mt-1 block w-full rounded-lg border border-slate-500 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700">
+      <p id="email-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+    <div><label for="password" class="font-bold">Password</label>
+      <input id="password" type="password" autocomplete="current-password" aria-describedby="password-error" class="mt-1 block w-full rounded-lg border border-slate-500 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700">
+      <p id="password-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+    <label class="flex items-center gap-2"><input id="remember" type="checkbox" class="h-4 w-4 accent-civic">
+      <span>Keep me signed in on this device</span></label>
+    <p class="text-sm text-slate-700">Leave this unticked on shared computers. It then signs you out when you close the tab.</p>
+    <button id="submit" type="submit" class="w-full rounded-lg bg-civic px-4 py-3 font-bold text-white hover:bg-civic-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-civic disabled:opacity-60">Sign in</button>
+  </form>
+  <p class="mt-6">New here? <a href="signup.html" class="font-bold text-civic underline">Create an account</a></p>
+</main>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script>
+<script>
+$(function () {
+  Guards.guestOnly();                                   // already signed in -> dashboard
+  $('#login-form').on('submit', function (e) {
+    e.preventDefault();
+    const email = $('#email').val().trim(), password = $('#password').val(), remember = $('#remember').is(':checked');
+    $('#form-error').addClass('hidden');
+    const okEmail = UI.fieldError('email', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? '' : 'Enter a valid email address.');
+    const okPass = UI.fieldError('password', password ? '' : 'Enter your password.');
+    if (!okEmail || !okPass) return $(okEmail ? '#password' : '#email').focus();
+
+    const $btn = $('#submit'); UI.loading($btn, true, 'Signing in…');
+    Api.request('POST', '/api/auth/login', { body: { email, password }, auth: false })
+      .then(function (res) {
+        // The Postman collection has no sample response, so accept the common shapes: { token } or { data: { token } }.
+        const token = res.token || (res.data && res.data.token);
+        if (!token) return $.Deferred().reject({ message: 'Login succeeded but the server sent no token.' });
+        const p = Auth.decode(token) || {};
+        Auth.save(token, { id: p.id, role: p.role }, remember);   // JWT carries id + role only
+        return Api.request('GET', '/api/users/profile/me');          // fetch full_name for the navbar
+      })
+      .then(function (res) {
+        const me = res.user || res.data || res, p = Auth.decode(Auth.token()) || {};
+        Auth.setUser({ id: me.id || p.id, full_name: me.full_name, role: me.role || p.role });
+        location.href = 'dashboard.html';
+      })
+      .fail(function (err) {
+        Auth.clear();
+        $('#form-error').text(err.message).removeClass('hidden').focus();
+        UI.loading($btn, false);
+      });
+  });
+});
+</script></body></html>
