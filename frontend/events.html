@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-6xl px-4 py-8">
+  <section class="hero"><p class="eyebrow">What's on in the city</p><h1>Find events near you</h1>
+    <p class="lead">Browse community events, register in one click and get reminders in your notifications.</p>
+    <a data-role="admin" href="event-form.html" class="hero-btn hidden">+ New event</a></section>
+  <form id="filters" role="search" aria-label="Filter events" class="mt-4 grid gap-3 sm:grid-cols-3">
+    <div><label for="f-q" class="font-bold">Keyword</label><input id="f-q" type="search" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic"></div>
+    <div><label for="f-date" class="font-bold">On or after</label><input id="f-date" type="date" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic"></div>
+    <div><label for="f-loc" class="font-bold">Location</label><input id="f-loc" type="search" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic"></div></form>
+  <p id="status" class="mt-4 text-slate-700" aria-live="polite"></p>
+  <ul id="list" class="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"></ul>
+  <nav id="pager" aria-label="Pagination" class="mt-8 flex items-center justify-center gap-3"></nav>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: signed-in users only
+  const admin = Auth.isAdmin(), PER = 6;
+  let events = [], registered = new Set(), page = 1;
+  $('#f-q').val(new URLSearchParams(location.search).get('q') || '');
+
+  const skeleton = () => $('#list').html(Array(6).fill('<li class="animate-pulse rounded-xl bg-white p-4 shadow"><div class="h-36 rounded bg-slate-200"></div><div class="mt-4 h-5 w-3/4 rounded bg-slate-200"></div><div class="mt-2 h-4 w-1/2 rounded bg-slate-200"></div></li>').join(''));
+
+  // Non-admins only ever see published events (UX filter; the backend remains the real gate).
+  function filtered() {
+    const q = $('#f-q').val().toLowerCase(), d = $('#f-date').val(), l = $('#f-loc').val().toLowerCase();
+    return events.filter(e => (admin || e.published) && (!q || (e.title + ' ' + (e.description || '')).toLowerCase().includes(q))
+      && (!l || (e.location || '').toLowerCase().includes(l)) && (!d || new Date(e.starts_at) >= new Date(d)))
+      .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at));
+  }
+  function card(e) {
+    const img = e.metadata && e.metadata.image_url ? '<img src="' + UI.esc(UI.mediaUrl(e.metadata.image_url)) + '" alt="Photo for ' + UI.esc(e.title) + '" loading="lazy" class="h-40 w-full rounded-t-xl object-cover">'
+      : '<div class="flex h-40 items-center justify-center rounded-t-xl bg-ink text-sm text-white" role="img" aria-label="No photo for this event">No photo</div>';
+    const reg = registered.has(e.id) ? '<span data-role="user" class="hidden rounded-lg bg-green-100 px-3 py-2 font-bold text-green-900">Registered</span>'
+      : '<button data-role="user" class="reg hidden rounded-lg border-2 border-civic px-3 py-2 font-bold text-civic hover:bg-slate-100" data-id="' + e.id + '">Register</button>';
+    return '<li class="flex flex-col rounded-xl bg-white shadow">' + img + '<div class="flex flex-1 flex-col p-4">'
+      + (e.published ? '' : '<p class="mb-1 w-fit rounded bg-amber-100 px-2 text-sm font-bold text-amber-900">Draft (not published)</p>')
+      + '<h2 class="text-xl font-bold">' + UI.esc(e.title) + '</h2><p class="mt-1 text-sm text-slate-700">' + UI.fmt(e.starts_at) + '<br>' + UI.esc(e.location) + '</p>'
+      + '<p class="mt-2 line-clamp-3 flex-1">' + UI.esc(e.description) + '</p><div class="mt-4 flex flex-wrap gap-2">'
+      + '<a href="event-detail.html?id=' + e.id + '" class="rounded-lg bg-civic px-3 py-2 font-bold text-white hover:bg-civic-dark">View</a>' + reg
+      + '<a data-role="admin" href="event-form.html?id=' + e.id + '" class="hidden rounded-lg border border-slate-500 px-3 py-2 font-bold">Edit</a>'
+      + '<button data-role="admin" class="del hidden rounded-lg border border-red-700 px-3 py-2 font-bold text-red-800" data-id="' + e.id + '">Delete</button></div></div></li>';
+  }
+  function render() {
+    const all = filtered(), pages = Math.max(1, Math.ceil(all.length / PER)); page = Math.min(page, pages);
+    $('#status').text(all.length + (all.length === 1 ? ' event found' : ' events found'));
+    $('#list').html(all.length ? all.slice((page - 1) * PER, page * PER).map(card).join('')
+      : '<li class="col-span-full rounded-xl bg-white p-8 text-center">No events match your filters. Clear the date or location to see more.</li>');
+    $('#pager').html(pages > 1 ? '<button class="pg rounded-lg border border-slate-500 px-4 py-2 font-bold disabled:opacity-50" data-p="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>Previous</button><span>Page ' + page + ' of ' + pages + '</span><button class="pg rounded-lg border border-slate-500 px-4 py-2 font-bold disabled:opacity-50" data-p="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>Next</button>' : '');
+    Guards.applyRoleUI();
+  }
+  function load() {
+    skeleton();
+    Api.request('GET', '/api/events').done(function (r) {
+      events = r.data || [];
+      if (admin) return render();
+      // Best effort: mark events the user already registered for (response shape not confirmed yet).
+      Api.request('GET', '/api/event-registrations/my-registrations').done(function (g) {
+        registered = new Set((g.data || []).filter(x => x.status !== 'cancelled').map(x => x.event_id || (x.event && x.event.id)));
+      }).always(render);
+    }).fail(e => $('#list').html('<li class="col-span-full rounded-xl border border-red-700 bg-red-50 p-6" role="alert">' + UI.esc(e.message) + ' <button id="retry" class="font-bold underline">Try again</button></li>'));
+  }
+  $('#filters input').on('input', () => { page = 1; render(); });
+  $('#filters').on('submit', e => e.preventDefault());
+  $(document).on('click', '#retry', load);
+  $('#pager').on('click', '.pg', function () { page = +$(this).data('p'); render(); $('#main')[0].scrollIntoView(); });
+  $('#list').on('click', '.reg', function () {           // normal-user action (button only rendered for role "user")
+    const $b = $(this), id = $b.data('id'); UI.loading($b, true, 'Registering…');
+    Api.request('POST', '/api/event-registrations/register', { body: { event_id: id } })
+      .done(() => { registered.add(id); UI.toast('You are registered.', 'success'); render(); })
+      .fail(e => { UI.toast(e.message, 'error'); UI.loading($b, false); });
+  }).on('click', '.del', function () {                   // ADMIN-ONLY action (button only rendered for role "admin")
+    const id = $(this).data('id'); if (!confirm('Delete this event? This cannot be undone.')) return;
+    Api.request('DELETE', '/api/events/' + id).done(() => { events = events.filter(e => e.id !== id); render(); UI.toast('Event deleted.', 'success'); })
+      .fail(e => UI.toast(e.message, 'error'));
+  });
+  load();
+});
+</script></body></html>

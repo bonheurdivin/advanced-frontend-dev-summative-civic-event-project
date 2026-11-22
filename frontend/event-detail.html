@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-4xl px-4 py-8">
+  <a href="events.html" class="font-bold text-civic underline">Back to events</a>
+  <div id="content" class="mt-4" aria-live="polite"><div class="animate-pulse"><div class="h-64 rounded-xl bg-slate-200"></div><div class="mt-4 h-8 w-2/3 rounded bg-slate-200"></div></div></div>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                          // GUARD: signed-in users
+  const id = new URLSearchParams(location.search).get('id'), admin = Auth.isAdmin(), IN = 'mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic';
+  const box = m => '<p class="rounded-xl bg-white p-6 shadow" role="alert">' + m + '</p>';
+  let ev, registered = false, myFb = null;
+  if (!id) return $('#content').html(box('No event selected.'));
+
+  function regBox() {
+    if (new Date(ev.ends_at) < new Date()) return $('#reg-box').html('<p class="font-bold">This event has ended.</p>');
+    $('#reg-box').html(registered
+      ? '<span class="rounded-lg bg-green-100 px-3 py-2 font-bold text-green-900">You are registered</span> <button id="cancel" class="ml-2 rounded-lg border border-red-700 px-3 py-2 font-bold text-red-800">Cancel registration</button>'
+      : '<button id="register" class="rounded-lg bg-civic px-4 py-3 font-bold text-white hover:bg-civic-dark">Register for this event</button>');
+  }
+  function show() {
+    const img = ev.metadata && ev.metadata.image_url ? '<img src="' + UI.esc(UI.mediaUrl(ev.metadata.image_url)) + '" alt="Photo for ' + UI.esc(ev.title) + '" class="max-h-96 w-full rounded-xl object-cover">' : '';
+    $('#content').html(img + '<h1 class="mt-4 text-3xl font-bold">' + UI.esc(ev.title) + '</h1>'
+      + (ev.published ? '' : '<p class="mt-1 w-fit rounded bg-amber-100 px-2 font-bold text-amber-900">Draft (not published)</p>')
+      + '<dl class="mt-3 grid gap-2 sm:grid-cols-2"><div><dt class="font-bold">Starts</dt><dd>' + UI.fmt(ev.starts_at) + '</dd></div><div><dt class="font-bold">Ends</dt><dd>' + UI.fmt(ev.ends_at) + '</dd></div>'
+      + '<div class="sm:col-span-2"><dt class="font-bold">Location</dt><dd>' + UI.esc(ev.location) + ' <a class="ml-2 text-civic underline" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(ev.location || '') + '">Open in maps</a></dd></div></dl>'
+      + '<p class="mt-4 max-w-prose whitespace-pre-line">' + UI.esc(ev.description) + '</p>'
+      + '<div data-role="user" class="hidden mt-6"><div id="reg-box"></div></div>'
+      + '<div data-role="admin" class="hidden mt-6 flex gap-2"><a href="event-form.html?id=' + ev.id + '" class="rounded-lg border border-slate-500 px-3 py-2 font-bold">Edit event</a></div>'
+      + '<section data-role="admin" class="hidden mt-10"><h2 class="text-2xl font-bold">Registrants</h2><div id="attendees" class="mt-3 overflow-x-auto"><p>Loading…</p></div></section>'
+      + '<section class="mt-10"><h2 class="text-2xl font-bold">Feedback</h2><p id="avg" class="mt-1 text-slate-700">Loading…</p><ul id="fb-list" class="mt-3 space-y-3"></ul>'
+      + '<form id="fb-form" data-role="user" class="hidden mt-6 space-y-3 rounded-xl bg-white p-5 shadow" novalidate><h3 class="text-xl font-bold" id="fb-title">Leave feedback</h3>'
+      + '<fieldset><legend class="font-bold">Rating</legend><div class="mt-1 flex gap-4">' + [1,2,3,4,5].map(n => '<label class="flex items-center gap-1"><input type="radio" name="rating" value="' + n + '" class="accent-civic">' + n + '</label>').join('') + '</div><p id="rating-error" class="hidden text-sm text-red-800"></p></fieldset>'
+      + '<div><label for="comment" class="font-bold">Comment</label><textarea id="comment" rows="3" class="' + IN + '"></textarea></div>'
+      + '<button id="fb-submit" class="rounded-lg bg-civic px-4 py-2 font-bold text-white hover:bg-civic-dark">Submit feedback</button></form></section>');
+    Guards.applyRoleUI(); if (!admin) regBox();
+  }
+  function fbList(list) {
+    const avg = list.length ? (list.reduce((s, f) => s + Number(f.rating || 0), 0) / list.length).toFixed(1) : null;
+    $('#avg').text(avg ? 'Average rating: ' + avg + ' out of 5 (' + list.length + (list.length === 1 ? ' review)' : ' reviews)') : 'No feedback yet.');
+    $('#fb-list').html(list.map(f => '<li class="rounded-xl bg-white p-4 shadow"><p class="font-bold">' + UI.esc(f.full_name || f.user_name || 'Attendee') + ': ' + Number(f.rating) + ' out of 5</p><p>' + UI.esc(f.comment) + '</p><p class="text-sm text-slate-700">' + UI.fmt(f.created_at) + '</p></li>').join(''));
+  }
+  function loadExtras() {
+    // ROLE GUARD: the backend only lets admins list all feedback for an event (GET /api/event-feedback/event/:id,
+    // authorize(['admin'])). So only admins request it; normal users see their own feedback via /my-feedback below.
+    if (admin) Api.request('GET', '/api/event-feedback/event/' + id).done(r => fbList(Array.isArray(r.data) ? r.data : (r.data && r.data.feedback) || []))
+      .fail(e => $('#avg').text(e.message));
+    else $('#avg').text('Ratings from all attendees are visible to administrators. Your own feedback is shown below.');
+    if (admin) return Api.request('GET', '/api/event-registrations/event/' + id + '/attendees').done(r => {
+      const l = r.data || [];
+      $('#attendees').html(l.length ? '<table class="w-full text-left"><caption class="sr-only">Registered attendees</caption><thead><tr><th class="p-2">Name</th><th class="p-2">Email</th><th class="p-2">Status</th></tr></thead><tbody>'
+        + l.map(a => '<tr class="border-t"><td class="p-2">' + UI.esc(a.full_name || a.name) + '</td><td class="p-2">' + UI.esc(a.email) + '</td><td class="p-2">' + UI.esc(a.status) + '</td></tr>').join('') + '</tbody></table>' : '<p>No one has registered yet.</p>');
+    }).fail(e => $('#attendees').html('<p role="alert" class="text-red-800">' + UI.esc(e.message) + '</p>'));
+    Api.request('GET', '/api/event-registrations/my-registrations').done(r => {
+      registered = (r.data || []).some(x => (x.event_id || (x.event && x.event.id)) === id && x.status !== 'cancelled'); regBox();
+    });
+    Api.request('GET', '/api/event-feedback/my-feedback').done(r => {
+      myFb = (r.data || []).find(f => f.event_id === id) || null;
+      if (myFb) { $('#fb-title').text('Update your feedback'); $('input[name=rating][value=' + myFb.rating + ']').prop('checked', true); $('#comment').val(myFb.comment);
+        $('#fb-list').html('<li class="rounded-xl bg-white p-4 shadow"><p class="font-bold">Your feedback: ' + Number(myFb.rating) + ' out of 5</p><p>' + UI.esc(myFb.comment) + '</p></li>'); }
+    });
+  }
+  Api.request('GET', '/api/events/' + id).done(r => {
+    ev = r.data;
+    if (!admin && !ev.published) return $('#content').html(box('This event is not available.'));
+    document.title = ev.title + ' – CivicEvents+'; show(); loadExtras();
+  }).fail(e => $('#content').html(box(UI.esc(e.status === 404 ? 'Event not found.' : e.message))));
+
+  $('#content').on('click', '#register', function () {   // normal-user action
+    const $b = $(this); UI.loading($b, true, 'Registering…');
+    Api.request('POST', '/api/event-registrations/register', { body: { event_id: id } })
+      .done(() => { registered = true; regBox(); UI.toast('You are registered.', 'success'); })
+      .fail(e => { UI.toast(e.message, 'error'); UI.loading($b, false); });
+  }).on('click', '#cancel', function () {
+    if (!confirm('Cancel your registration for this event?')) return;
+    const $b = $(this); UI.loading($b, true, 'Cancelling…');
+    Api.request('POST', '/api/event-registrations/cancel', { body: { event_id: id } })
+      .done(() => { registered = false; regBox(); UI.toast('Registration cancelled.', 'success'); })
+      .fail(e => { UI.toast(e.message, 'error'); UI.loading($b, false); });
+  }).on('submit', '#fb-form', function (e) {            // normal-user action: one feedback per event (backend UNIQUE); edit if one exists
+    e.preventDefault();
+    const rating = +$('input[name=rating]:checked').val(), comment = $('#comment').val().trim();
+    if (!rating) return $('#rating-error').text('Choose a rating from 1 to 5.').removeClass('hidden');
+    $('#rating-error').addClass('hidden');
+    const $b = $('#fb-submit'); UI.loading($b, true, 'Saving…');
+    (myFb ? Api.request('PUT', '/api/event-feedback/' + myFb.id, { body: { rating, comment } })
+          : Api.request('POST', '/api/event-feedback', { body: { event_id: id, rating, comment } }))
+      .done(() => { UI.toast('Thanks for your feedback.', 'success'); loadExtras(); UI.loading($b, false); })
+      .fail(er => { UI.toast(er.message, 'error'); UI.loading($b, false); });
+  });
+});
+</script></body></html>

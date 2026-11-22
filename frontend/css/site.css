@@ -1,0 +1,57 @@
+/* CivicEvents+ shared polish. */
+body.bg-slate-50 { background: linear-gradient(180deg, #e3f1f1 0, #f8fafc 380px) no-repeat, #f8fafc; }
+h1, h2.text-2xl, .brand, #stats p.text-4xl { font-family: 'Fraunces', Georgia, serif; letter-spacing: -.01em; }
+
+/* Header */
+header.sticky { background: rgba(255,255,255,.88) !important; backdrop-filter: blur(10px); box-shadow: 0 1px 0 #e2e8f0, 0 8px 24px -16px rgba(15,42,61,.3); border: 0 !important; }
+.brand { display: inline-flex; align-items: center; }
+.brand::before { content: ''; width: 1rem; height: 1rem; margin-right: .5rem; border-radius: .35rem; background: linear-gradient(135deg, #0E6F78 55%, #F2B705 55%); }
+#nav a[aria-current="page"] { background: #e3f1f1; color: #0A5860; }
+
+/* Hero banner */
+.hero { position: relative; overflow: hidden; padding: 2rem 1.5rem; border-radius: 1.5rem; color: #fff; background: linear-gradient(135deg, #0F2A3D 0%, #0E6F78 100%); }
+.hero::after { content: ''; position: absolute; right: -4rem; top: -5rem; width: 18rem; height: 18rem; border-radius: 50%; background: radial-gradient(circle, rgba(242,183,5,.35), transparent 65%); }
+.hero > * { position: relative; z-index: 1; }
+.hero .eyebrow { font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: #F2D56B; }
+.hero h1 { margin-top: .25rem; font-size: 2rem; line-height: 1.15; font-weight: 700; }
+.hero p.lead { margin-top: .5rem; max-width: 34rem; color: #d7e6e8; }
+.hero-btn { margin-top: 1rem; border-radius: .75rem; background: #fff; color: #0F2A3D; padding: .6rem 1.1rem; font-weight: 700; }
+.hero-btn:not(.hidden) { display: inline-block; }
+@media (min-width: 640px) { .hero { padding: 3rem 2.5rem; } .hero h1 { font-size: 2.75rem; } }
+
+/* Cards */
+.rounded-xl.bg-white { border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(15,42,61,.06), 0 12px 28px -16px rgba(15,42,61,.25); }
+#list > li { overflow: hidden; transition: transform .2s, box-shadow .2s; }
+#list > li:hover { transform: translateY(-4px); box-shadow: 0 18px 36px -14px rgba(15,42,61,.35); }
+#list > li img { transition: transform .4s; } #list > li:hover img { transform: scale(1.05); }
+[role="img"][aria-label^="No photo"] { background-image: linear-gradient(135deg, #0F2A3D, #0E6F78); letter-spacing: .05em; }
+#stats > div { border-top: 4px solid #0E6F78; }
+
+/* Buttons and inputs */
+a.bg-civic, button.bg-civic { background-image: linear-gradient(180deg, #118490, #0E6F78); box-shadow: 0 8px 16px -8px rgba(14,111,120,.7); transition: transform .15s, filter .15s; }
+a.bg-civic:hover, button.bg-civic:hover { filter: brightness(.93); transform: translateY(-1px); }
+button:disabled { transform: none !important; cursor: not-allowed; }
+input, textarea, select { transition: border-color .15s, box-shadow .15s; }
+
+/* Footer */
+footer.mt-12 { background: #0F2A3D !important; border: 0 !important; color: #cbd5e1; margin-top: 4rem; }
+footer .text-slate-700 { color: #cbd5e1; } footer p.font-bold, footer a { color: #fff; } footer .border-t { border-color: #274255 !important; }
+
+/* Login / signup card */
+body:has(> main.max-w-md) { background: linear-gradient(135deg, #0F2A3D, #0E6F78) fixed !important; padding: 1rem; }
+main.max-w-md { min-height: 0 !important; margin: 2.5rem auto !important; padding: 2.25rem 1.75rem !important; background: #fff; border-radius: 1.5rem; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Dashboard tiles */
+.tile { display: flex; flex-direction: column; gap: .25rem; height: 100%; padding: 1.25rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 1.25rem; box-shadow: 0 1px 2px rgba(15,42,61,.06), 0 12px 28px -16px rgba(15,42,61,.25); transition: transform .2s, box-shadow .2s; }
+.tile:hover { transform: translateY(-3px); box-shadow: 0 18px 36px -14px rgba(15,42,61,.35); }
+.tile-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: .9rem; font-size: 1.35rem; margin-bottom: .5rem; }
+.tile-num { font-family: 'Fraunces', Georgia, serif; font-size: 2.4rem; font-weight: 700; line-height: 1; }
+.tile-label { color: #475569; font-weight: 700; }
+
+/* Dialog forms (announcements / promos) */
+dialog label { font-weight: 700; display: block; margin-top: .75rem; }
+dialog input:not([type="checkbox"]):not([type="file"]), dialog textarea { display: block; width: 100%; margin-top: .25rem; border: 1px solid #64748b; border-radius: .5rem; padding: .55rem .75rem; background: #fff; }
+dialog input:focus, dialog textarea:focus { outline: 2px solid #0E6F78; outline-offset: 1px; }
+dialog [aria-invalid="true"] { border-color: #b91c1c !important; }

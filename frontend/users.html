@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-6xl px-4 py-8">
+  <section class="hero"><p class="eyebrow">Administration</p><h1>Users</h1><p class="lead">View accounts and enable or disable access. Roles cannot be changed from here.</p></section>
+  <div class="mt-6"><label for="u-q" class="font-bold">Search users</label><input id="u-q" type="search" placeholder="Name or email" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic sm:max-w-sm"></div>
+  <p id="status" class="mt-3 text-slate-700" aria-live="polite"></p>
+  <div class="mt-3 overflow-x-auto rounded-xl bg-white"><table class="w-full text-left"><caption class="sr-only">All users</caption>
+    <thead class="border-b border-slate-200"><tr><th class="p-3">Name</th><th class="p-3">Email</th><th class="p-3">Role</th><th class="p-3">Status</th><th class="p-3">Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <dialog id="u-dialog" aria-labelledby="u-title" class="w-[min(28rem,92vw)] rounded-2xl p-6 shadow-xl backdrop:bg-black/40"><h2 id="u-title" class="text-2xl font-bold">User profile</h2><dl id="u-body" class="mt-4 space-y-2"></dl>
+    <button id="u-close" class="mt-6 rounded-lg border border-slate-500 px-4 py-2 font-bold">Close</button></dialog>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  // GUARD (admin only): the whole page. Normal users are redirected to the dashboard with a 403 message.
+  if (!Layout.init() || !Guards.requireAdmin()) return;
+  const me = (Auth.user() || {}).id; let users = [];
+  const active = u => u.is_active !== false;
+  function render() {
+    const q = $('#u-q').val().toLowerCase(), l = users.filter(u => !q || (u.full_name + ' ' + u.email).toLowerCase().includes(q));
+    $('#status').text(l.length + (l.length === 1 ? ' user' : ' users'));
+    $('#rows').html(l.length ? l.map(u => '<tr class="border-t border-slate-200"><td class="p-3 font-bold">' + UI.esc(u.full_name) + '</td><td class="p-3">' + UI.esc(u.email) + '</td><td class="p-3 capitalize">' + UI.esc(u.role) + '</td>'
+      + '<td class="p-3"><span class="rounded px-2 py-0.5 text-sm font-bold ' + (active(u) ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900') + '">' + (active(u) ? 'Active' : 'Disabled') + '</span></td>'
+      + '<td class="p-3"><button class="view mr-2 rounded-lg border border-slate-500 px-3 py-1.5 font-bold" data-id="' + u.id + '">View</button>'
+      + (u.id === me ? '<span class="text-sm text-slate-700">You</span>' : '<button class="tog rounded-lg border px-3 py-1.5 font-bold ' + (active(u) ? 'border-red-700 text-red-800' : 'border-green-700 text-green-900') + '" data-id="' + u.id + '">' + (active(u) ? 'Disable' : 'Enable') + '</button>') + '</td></tr>').join('')
+      : '<tr><td colspan="5" class="p-6 text-center">No users match your search.</td></tr>');
+  }
+  function load() {
+    $('#rows').html('<tr><td colspan="5" class="p-6"><div class="h-6 animate-pulse rounded bg-slate-200"></div></td></tr>');
+    Api.request('GET', '/api/users').done(r => { users = Array.isArray(r.data) ? r.data : (r.data && r.data.users) || []; render(); })
+      .fail(e => $('#rows').html('<tr><td colspan="5" class="p-6 text-red-800" role="alert">' + UI.esc(e.message) + ' <button id="retry" class="font-bold underline">Try again</button></td></tr>'));
+  }
+  $('#u-q').on('input', render); $(document).on('click', '#retry', load);
+  $('#rows').on('click', '.tog', function () {          // ADMIN-ONLY: enable/disable. No role-change control exists anywhere in the UI.
+    const u = users.find(x => x.id === $(this).data('id')), on = !active(u);
+    if (!confirm((on ? 'Enable ' : 'Disable ') + u.full_name + '?')) return;
+    const prev = u.is_active; u.is_active = on; render();                                              // optimistic
+    Api.request('PATCH', '/api/users/' + u.id + (on ? '/enable' : '/disable')).done(() => UI.toast(u.full_name + (on ? ' enabled.' : ' disabled.'), 'success'))
+      .fail(e => { u.is_active = prev; render(); UI.toast(e.message, 'error'); });
+  }).on('click', '.view', function () {
+    Api.request('GET', '/api/users/' + $(this).data('id')).done(r => {
+      const u = r.data && r.data.user ? r.data.user : r.data;
+      $('#u-body').html([['Name', u.full_name], ['Email', u.email], ['Role', u.role], ['Status', active(u) ? 'Active' : 'Disabled'], ['Joined', UI.fmt(u.created_at)], ['ID', u.id]]
+        .map(p => '<div><dt class="text-sm text-slate-700">' + p[0] + '</dt><dd class="break-all font-bold">' + UI.esc(p[1]) + '</dd></div>').join(''));
+      $('#u-dialog')[0].showModal();
+    }).fail(e => UI.toast(e.message, 'error'));
+  });
+  $('#u-close').on('click', () => $('#u-dialog')[0].close());
+  load();
+});
+</script></body></html>

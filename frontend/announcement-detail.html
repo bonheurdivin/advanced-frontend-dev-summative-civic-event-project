@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Announcement – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-3xl px-4 py-8">
+  <a href="announcements.html" class="font-bold text-civic underline">Back to announcements</a>
+  <div id="content" class="mt-4" aria-live="polite"><div class="h-48 animate-pulse rounded-xl bg-slate-200"></div></div>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script><script src="js/media.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: signed-in users; unpublished items are blocked for non-admins below
+  const id = new URLSearchParams(location.search).get('id'), admin = Auth.isAdmin(), box = m => '<p class="rounded-xl bg-white p-6" role="alert">' + m + '</p>';
+  if (!id) return $('#content').html(box('No announcement selected.'));
+  Api.request('GET', '/api/announcements/' + id).done(r => {
+    const a = r.data, url = UI.mediaUrl(a.audio_url);
+    if (!admin && !a.published) return $('#content').html(box('This announcement is not available.'));
+    document.title = a.title + ' – CivicEvents+';
+    $('#content').html('<section class="hero"><p class="eyebrow">Announcement</p><h1>' + UI.esc(a.title) + '</h1><p class="lead">' + UI.fmt(a.created_at) + '</p></section>'
+      + '<div class="mt-6 rounded-xl bg-white p-6"><audio id="player" controls preload="metadata" class="w-full" aria-label="Audio: ' + UI.esc(a.title) + '" src="' + UI.esc(url) + '">'
+      + 'Your browser cannot play this audio. <a class="underline" href="' + UI.esc(url) + '" download>Download the audio file</a> instead.</audio>'
+      + '<p class="mt-3 text-lg font-bold" id="time" aria-hidden="true">0:00 / 0:00</p><p id="err" class="mt-2 hidden text-red-800" role="alert">This audio could not be loaded. Please try again later.</p></div>'
+      + '<div data-role="admin" class="hidden mt-6 flex gap-2"><button id="pub" class="rounded-lg border border-slate-500 px-4 py-2 font-bold">' + (a.published ? 'Unpublish' : 'Publish') + '</button>'
+      + '<button id="del" class="rounded-lg border border-red-700 px-4 py-2 font-bold text-red-800">Delete</button></div>');
+    Guards.applyRoleUI();
+    const p = $('#player')[0], t = () => $('#time').text(Media.time(p.currentTime) + ' / ' + Media.time(p.duration));   // friendly current time / duration
+    p.addEventListener('timeupdate', t); p.addEventListener('loadedmetadata', t); p.addEventListener('error', () => $('#err').removeClass('hidden'));
+    $('#pub').on('click', function () {              // ADMIN-ONLY
+      const want = !a.published;
+      Api.request('PATCH', '/api/announcements/' + id + (want ? '/publish' : '/unpublish')).done(() => { a.published = want; $('#pub').text(want ? 'Unpublish' : 'Publish'); UI.toast(want ? 'Published.' : 'Unpublished.', 'success'); }).fail(e => UI.toast(e.message, 'error'));
+    });
+    $('#del').on('click', function () {              // ADMIN-ONLY
+      if (!confirm('Delete this announcement? This cannot be undone.')) return;
+      Api.request('DELETE', '/api/announcements/' + id).done(() => { UI.flash('Announcement deleted.', 'success'); location.href = 'announcements.html'; }).fail(e => UI.toast(e.message, 'error'));
+    });
+  }).fail(e => $('#content').html(box(UI.esc(e.status === 404 ? 'Announcement not found.' : e.message))));
+});
+</script></body></html>

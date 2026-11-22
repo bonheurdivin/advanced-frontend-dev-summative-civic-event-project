@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My events – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-4xl px-4 py-8">
+  <section class="hero"><p class="eyebrow">Your plans</p><h1>My events</h1><p class="lead">Events you have registered for. You can cancel before they start.</p></section>
+  <p id="status" class="mt-4 text-slate-700" aria-live="polite"></p>
+  <ul id="list" class="mt-4 space-y-4"></ul>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: signed-in users (the nav link is data-role="user")
+  let rows = [];
+  // The response shape is not confirmed, so accept both flat rows and rows with a nested "event".
+  const norm = r => { const e = r.event || {}; return { id: r.event_id || e.id || r.id, title: r.title || e.title || r.event_title || 'Event', starts: r.starts_at || e.starts_at,
+    ends: r.ends_at || e.ends_at, location: r.location || e.location, status: r.status || 'registered' }; };
+  function render() {
+    const act = rows.filter(r => r.status !== 'cancelled').length;
+    $('#status').text(act + (act === 1 ? ' active registration' : ' active registrations'));
+    $('#list').html(rows.length ? rows.map(r => {
+      const over = r.ends && new Date(r.ends) < new Date(), off = r.status === 'cancelled';
+      return '<li class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4"><div><a class="text-xl font-bold text-civic underline" href="event-detail.html?id=' + r.id + '">' + UI.esc(r.title) + '</a>'
+        + '<p class="text-slate-700">' + UI.fmt(r.starts) + (r.location ? ' at ' + UI.esc(r.location) : '') + '</p>'
+        + '<p class="mt-1 w-fit rounded px-2 text-sm font-bold ' + (off ? 'bg-red-100 text-red-900' : over ? 'bg-slate-200 text-slate-800' : 'bg-green-100 text-green-900') + '">' + (off ? 'Cancelled' : over ? 'Event ended' : 'Registered') + '</p></div>'
+        + (off || over ? '' : '<button class="cancel rounded-lg border border-red-700 px-3 py-2 font-bold text-red-800" data-id="' + r.id + '">Cancel registration</button>') + '</li>';
+    }).join('') : '<li class="rounded-xl bg-white p-8 text-center">You have not registered for any events yet. <a class="font-bold text-civic underline" href="events.html">Browse events</a></li>');
+  }
+  function load() {
+    $('#list').html('<li class="h-24 animate-pulse rounded-xl bg-slate-200"></li><li class="h-24 animate-pulse rounded-xl bg-slate-200"></li>');
+    Api.request('GET', '/api/event-registrations/my-registrations').done(r => { rows = (r.data || []).map(norm).sort((a, b) => new Date(a.starts) - new Date(b.starts)); render(); })
+      .fail(e => $('#list').html('<li class="rounded-xl border border-red-700 bg-red-50 p-6" role="alert">' + UI.esc(e.message) + ' <button id="retry" class="font-bold underline">Try again</button></li>'));
+  }
+  $(document).on('click', '#retry', load);
+  $('#list').on('click', '.cancel', function () {
+    const id = $(this).data('id'); if (!confirm('Cancel your registration for this event?')) return;
+    const row = rows.find(r => r.id === id), prev = row.status; row.status = 'cancelled'; render();       // optimistic update
+    Api.request('POST', '/api/event-registrations/cancel', { body: { event_id: id } }).done(() => UI.toast('Registration cancelled.', 'success'))
+      .fail(e => { row.status = prev; render(); UI.toast(e.message, 'error'); });                          // revert on failure
+  });
+  load();
+});
+</script></body></html>

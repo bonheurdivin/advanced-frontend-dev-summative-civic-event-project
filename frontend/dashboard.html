@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-6xl px-4 py-8">
+  <section class="hero"><p class="eyebrow">Your overview</p><h1 id="title">Dashboard</h1><p class="lead">A quick look at what is happening across CivicEvents+.</p></section>
+  <h2 class="mt-8 text-2xl font-bold">At a glance</h2>
+  <ul id="stats" class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
+    <li class="h-36 animate-pulse rounded-2xl bg-slate-200"></li><li class="h-36 animate-pulse rounded-2xl bg-slate-200"></li><li class="h-36 animate-pulse rounded-2xl bg-slate-200"></li></ul>
+  <section id="chart-box" class="mt-8 hidden rounded-xl bg-white p-6"><h2 class="text-2xl font-bold">Comparison</h2><ul id="bars" class="mt-4 space-y-4"></ul></section>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: signed-in users. Admins get /dashboard/admin, users get /dashboard/me.
+  const admin = Auth.isAdmin(), name = ((Auth.user() || {}).full_name || '').split(' ')[0];
+  $('#title').text(admin ? 'Admin dashboard' : 'Welcome back' + (name ? ', ' + name : ''));
+
+  // Friendly names for the API's keys (the API sends e.g. total_registered_events). Unknown keys fall back to a cleaned-up version.
+  const NAMES = { total_registered_events: 'Events registered', total_feedbacks: 'Feedback submitted', total_notifications: 'Notifications',
+    unread_notifications: 'Unread notifications', total_announcements: 'Announcements', total_promos: 'Promos' };
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const label = path => { const k = path.split('.').pop(); return NAMES[k] || cap(k.replace(/^total_/, '').replace(/_/g, ' ')); };
+  // Icon + where the tile links to, chosen by what the metric is about.
+  const META = [[/user/, '👥', 'users.html'], [/regist/, '🎟️', admin ? 'events.html' : 'my-registrations.html'], [/feedback/, '💬', 'events.html'],
+    [/unread|notif/, '🔔', '#bell'], [/announce/, '🔊', 'announcements.html'], [/promo/, '🎬', 'promos.html'], [/event/, '📅', 'events.html']];
+  const meta = path => (META.find(m => m[0].test(path)) || [0, '📊', '#']).slice(1);
+  const TINTS = [['#e3f1f1', '#0A5860'], ['#fdf3d0', '#7a5b00'], ['#e6e9fb', '#2e3a8c'], ['#fde6ea', '#9b1c3a']];
+  const flat = (o, p) => Object.entries(o || {}).flatMap(([k, v]) => v && typeof v === 'object' && !Array.isArray(v) ? flat(v, p + k + '.')
+    : (typeof v !== 'boolean' && /^\d+(\.\d+)?$/.test(String(v))) ? [[p + k, +v]] : []);
+
+  // Keep the notification tiles in sync with the bell (opening/deleting a notification changes the count).
+  const live = c => { if (!c) return; $('[data-metric="unread"] .tile-num').text(c.unread); $('[data-metric="notif-total"] .tile-num').text(c.total); };
+  $(document).on('civic:notifs', (e, c) => live(c));
+  $('#stats').on('click', 'a[href="#bell"]', function (e) { e.preventDefault(); $('#bell').trigger('click'); });
+
+  function load() {
+    Api.request('GET', admin ? '/api/dashboard/admin' : '/api/dashboard/me').done(function (r) {
+      const nums = flat(r.data, ''), max = Math.max(1, ...nums.map(n => n[1]));
+      if (!nums.length) return $('#stats').html('<li class="col-span-full rounded-xl bg-white p-6">No statistics to show yet.</li>');
+      $('#stats').html(nums.map((n, i) => {
+        const m = meta(n[0]), t = TINTS[i % 4], metric = /unread/.test(n[0]) ? 'unread' : /total_notifications/.test(n[0]) ? 'notif-total' : '';
+        return '<li><a href="' + m[1] + '" class="tile" data-metric="' + metric + '"><span class="tile-icon" aria-hidden="true" style="background:' + t[0] + ';color:' + t[1] + '">' + m[0] + '</span>'
+          + '<span class="tile-num">' + n[1] + '</span><span class="tile-label">' + UI.esc(label(n[0])) + '</span></a></li>';
+      }).join(''));
+      live(Layout.counts());
+      $('#bars').attr('aria-label', nums.map(n => label(n[0]) + ': ' + n[1]).join(', ')).html(nums.map((n, i) =>
+        '<li><div class="flex justify-between"><span>' + UI.esc(label(n[0])) + '</span><span class="font-bold">' + n[1] + '</span></div><div class="mt-1 h-3 rounded-full bg-slate-200" aria-hidden="true"><div class="h-3 rounded-full" style="width:' + Math.max(3, n[1] / max * 100) + '%;background:' + TINTS[i % 4][1] + '"></div></div></li>').join(''));
+      $('#chart-box').removeClass('hidden');
+    }).fail(e => $('#stats').html('<li class="col-span-full rounded-xl border border-red-700 bg-red-50 p-6 text-red-900" role="alert">' + UI.esc(e.message) + ' <button id="retry" class="font-bold underline">Try again</button></li>'));
+  }
+  $(document).on('click', '#retry', load);
+  load();
+});
+</script></body></html>

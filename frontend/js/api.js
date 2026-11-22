@@ -17,6 +17,8 @@ window.Api = (function () {
     const sentToken = opts.auth !== false && Auth.token();
     const o = { url: CONFIG.API_BASE_URL + path, method: method, headers: {} };
     if (sentToken) o.headers.Authorization = 'Bearer ' + sentToken;
+    // Optional upload progress: pass onProgress(fraction 0..1) alongside formData.
+    if (opts.onProgress) o.xhr = function () { const x = $.ajaxSettings.xhr(); if (x.upload) x.upload.addEventListener('progress', ev => ev.lengthComputable && opts.onProgress(ev.loaded / ev.total)); return x; };
     if (opts.formData) { o.data = opts.formData; o.processData = false; o.contentType = false; } // browser sets the multipart boundary
     else if (opts.body) { o.data = JSON.stringify(opts.body); o.contentType = 'application/json'; }
     return $.ajax(o).then(null, function (xhr) {

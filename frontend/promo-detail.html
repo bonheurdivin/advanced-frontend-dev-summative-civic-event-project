@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promo – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-4xl px-4 py-8">
+  <a href="promos.html" class="font-bold text-civic underline">Back to promos</a>
+  <div id="content" class="mt-4" aria-live="polite"><div class="aspect-video animate-pulse rounded-xl bg-slate-200"></div></div>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script><script src="js/media.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: signed-in users; unpublished promos are blocked for non-admins below
+  const id = new URLSearchParams(location.search).get('id'), admin = Auth.isAdmin(), box = m => '<p class="rounded-xl bg-white p-6" role="alert">' + m + '</p>';
+  if (!id) return $('#content').html(box('No promo selected.'));
+  Api.request('GET', '/api/promos/' + id).done(r => {
+    const p = r.data, url = UI.mediaUrl(p.video_url);
+    if (!admin && !p.published) return $('#content').html(box('This promo is not available.'));
+    document.title = p.title + ' – CivicEvents+';
+    const hasCap = !!(p.caption_text && p.caption_text.trim());
+    $('#content').html('<h1 class="text-3xl font-bold">' + UI.esc(p.title) + '</h1>'
+      + '<video id="v" controls preload="metadata" playsinline class="mt-4 w-full rounded-xl bg-black" aria-label="Promo video: ' + UI.esc(p.title) + '" src="' + UI.esc(url) + '">'
+      + 'Your browser cannot play this video. <a class="underline" href="' + UI.esc(url) + '" download>Download the video</a> instead.</video>'
+      + '<p id="err" class="mt-2 hidden text-red-800" role="alert">This video could not be loaded. Please try again later.</p>'
+      + (hasCap ? '<button id="cc" class="mt-3 rounded-lg border border-slate-500 bg-white px-4 py-2 font-bold" aria-pressed="true">Captions: on</button>' : '<p class="mt-3 text-slate-700">No captions are available for this video.</p>')
+      + (p.description ? '<p class="mt-4 max-w-prose">' + UI.esc(p.description) + '</p>' : '')
+      + (hasCap ? '<section class="mt-6 rounded-xl bg-white p-5"><h2 class="text-xl font-bold">Transcript</h2><p class="mt-2 whitespace-pre-line">' + UI.esc(p.caption_text) + '</p></section>' : ''));
+    const v = $('#v')[0]; v.addEventListener('error', () => $('#err').removeClass('hidden'));
+    if (hasCap) v.addEventListener('loadedmetadata', function add() {          // build the caption track once the duration is known; ON by default
+      v.removeEventListener('loadedmetadata', add);
+      const t = document.createElement('track'); t.kind = 'captions'; t.srclang = 'en'; t.label = 'English'; t.default = true;
+      t.src = URL.createObjectURL(new Blob([Media.vtt(p.caption_text, v.duration)], { type: 'text/vtt' })); v.appendChild(t); t.track.mode = 'showing';
+    });
+    $('#cc').on('click', function () {              // simple on/off toggle (the browser's own CC menu also works)
+      const tr = v.textTracks[0]; if (!tr) return; const on = tr.mode !== 'showing'; tr.mode = on ? 'showing' : 'hidden';
+      $(this).text('Captions: ' + (on ? 'on' : 'off')).attr('aria-pressed', on);
+    });
+  }).fail(e => $('#content').html(box(UI.esc(e.status === 404 ? 'Promo not found.' : e.message))));
+});
+</script></body></html>

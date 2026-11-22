@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event form – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-2xl px-4 py-8">
+  <h1 id="page-title" class="text-3xl font-bold">New event</h1>
+  <form id="event-form" class="mt-6 space-y-4" novalidate>
+    <div><label for="title" class="font-bold">Title</label><input id="title" type="text" aria-describedby="title-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="title-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+    <div><label for="description" class="font-bold">Description</label><textarea id="description" rows="4" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic"></textarea></div>
+    <div><label for="location" class="font-bold">Location</label><input id="location" type="text" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic"></div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div><label for="starts_at" class="font-bold">Starts</label><input id="starts_at" type="datetime-local" aria-describedby="starts_at-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="starts_at-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+      <div><label for="ends_at" class="font-bold">Ends</label><input id="ends_at" type="datetime-local" aria-describedby="ends_at-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="ends_at-error" class="mt-1 hidden text-sm text-red-800"></p></div></div>
+    <label class="flex items-center gap-2"><input id="published" type="checkbox" checked class="h-4 w-4 accent-civic"><span class="font-bold">Published</span><span class="text-slate-700">(visible to everyone)</span></label>
+    <div><label for="image" class="font-bold">Event image</label><input id="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-describedby="image-help image-error" class="mt-1 block w-full">
+      <p id="image-help" class="mt-1 text-sm text-slate-700">JPG, PNG, WebP or GIF, up to 5 MB.</p><p id="image-error" class="mt-1 hidden text-sm text-red-800"></p>
+      <img id="preview" alt="Preview of the selected event image" class="mt-3 hidden max-h-56 rounded-lg"></div>
+    <div id="progress-wrap" class="hidden"><div class="h-3 rounded bg-slate-200" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress" class="h-3 w-0 rounded bg-civic"></div></div></div>
+    <div class="flex gap-3"><button id="submit" type="submit" class="rounded-lg bg-civic px-5 py-3 font-bold text-white hover:bg-civic-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-civic disabled:opacity-60">Save event</button>
+      <a href="events.html" class="rounded-lg border border-slate-500 px-5 py-3 font-bold">Cancel</a></div>
+  </form>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  // GUARD (admin only): create/edit events. Normal users are redirected to the dashboard with a 403 message.
+  if (!Layout.init() || !Guards.requireAdmin()) return;
+  const id = new URLSearchParams(location.search).get('id'), MAX = 5 * 1024 * 1024, TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const local = iso => { const d = new Date(iso), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+  if (id) {
+    $('#page-title').text('Edit event');
+    Api.request('GET', '/api/events/' + id).done(r => {
+      const e = r.data; $('#title').val(e.title); $('#description').val(e.description); $('#location').val(e.location);
+      $('#starts_at').val(e.starts_at ? local(e.starts_at) : ''); $('#ends_at').val(e.ends_at ? local(e.ends_at) : ''); $('#published').prop('checked', !!e.published);
+      if (e.metadata && e.metadata.image_url) $('#preview').attr('src', UI.mediaUrl(e.metadata.image_url)).removeClass('hidden');
+    }).fail(e => UI.toast(e.message, 'error'));
+  }
+  $('#image').on('change', function () {                  // validate type/size BEFORE uploading, then preview
+    const f = this.files[0]; $('#image-error').addClass('hidden');
+    if (!f) return;
+    if (!TYPES.includes(f.type)) { $('#image-error').text('Choose a JPG, PNG, WebP or GIF image.').removeClass('hidden'); this.value = ''; return; }
+    if (f.size > MAX) { $('#image-error').text('That image is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 5 MB.').removeClass('hidden'); this.value = ''; return; }
+    $('#preview').attr('src', URL.createObjectURL(f)).removeClass('hidden');
+  });
+  $('#event-form').on('submit', function (e) {
+    e.preventDefault();
+    const v = { title: $('#title').val().trim(), s: $('#starts_at').val(), en: $('#ends_at').val() };
+    const ok = [UI.fieldError('title', v.title ? '' : 'Enter a title.'), UI.fieldError('starts_at', v.s ? '' : 'Choose a start date and time.'),
+      UI.fieldError('ends_at', !v.en ? 'Choose an end date and time.' : (v.s && new Date(v.en) < new Date(v.s) ? 'The end must be after the start.' : ''))];
+    if (ok.includes(false)) return $('[aria-invalid="true"]').first().focus();
+    const fd = new FormData();                            // multipart: fields + file under key "image"
+    fd.append('title', v.title); fd.append('description', $('#description').val().trim()); fd.append('location', $('#location').val().trim());
+    fd.append('starts_at', new Date(v.s).toISOString()); fd.append('ends_at', new Date(v.en).toISOString()); fd.append('published', $('#published').is(':checked'));
+    const f = $('#image')[0].files[0]; if (f) fd.append('image', f);
+    const $b = $('#submit'); UI.loading($b, true, 'Saving…'); if (f) $('#progress-wrap').removeClass('hidden');
+    Api.request(id ? 'PUT' : 'POST', id ? '/api/events/' + id : '/api/events', { formData: fd, onProgress: p => { $('#progress').css('width', (p * 100) + '%'); $('[role=progressbar]').attr('aria-valuenow', Math.round(p * 100)); } })
+      .done(() => { UI.flash(id ? 'Event updated.' : 'Event created.', 'success'); location.href = 'events.html'; })
+      .fail(er => { UI.toast(er.message, 'error'); UI.loading($b, false); $('#progress-wrap').addClass('hidden'); });
+  });
+});
+</script></body></html>

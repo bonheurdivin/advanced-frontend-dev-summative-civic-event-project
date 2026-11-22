@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My profile – CivicEvents+</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="js/theme.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><link rel="stylesheet" href="css/site.css"></head>
+<body class="bg-slate-50 font-sans text-ink">
+<div id="app-header"></div>
+<main id="main" class="mx-auto max-w-2xl px-4 py-8">
+  <section class="hero"><p class="eyebrow">Account</p><h1>My profile</h1><p class="lead">Update your name and email. Your role and account status are managed by administrators.</p></section>
+  <div class="mt-6 rounded-xl bg-white p-6">
+    <dl class="grid gap-3 sm:grid-cols-3"><div><dt class="text-sm text-slate-700">Role</dt><dd id="p-role" class="font-bold capitalize">…</dd></div>
+      <div><dt class="text-sm text-slate-700">Status</dt><dd id="p-active" class="font-bold">…</dd></div><div><dt class="text-sm text-slate-700">Member since</dt><dd id="p-since" class="font-bold">…</dd></div></dl>
+    <form id="profile-form" class="mt-6 space-y-4" novalidate>
+      <div><label for="full_name" class="font-bold">Full name</label><input id="full_name" type="text" autocomplete="name" aria-describedby="full_name-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="full_name-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+      <div><label for="email" class="font-bold">Email</label><input id="email" type="email" autocomplete="email" aria-describedby="email-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="email-error" class="mt-1 hidden text-sm text-red-800"></p></div>
+      <button id="submit" type="submit" class="rounded-lg bg-civic px-5 py-3 font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-civic disabled:opacity-60">Save changes</button>
+    </form></div>
+</main>
+<div id="app-footer"></div>
+<script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/api.js"></script><script src="js/guards.js"></script><script src="js/layout.js"></script>
+<script>
+$(function () {
+  if (!Layout.init()) return;                       // GUARD: any signed-in user edits only their own profile (/profile/me)
+  const pick = r => r.data && r.data.user ? r.data.user : r.data || {};
+  Api.request('GET', '/api/users/profile/me').done(r => {
+    const u = pick(r); $('#full_name').val(u.full_name); $('#email').val(u.email);
+    $('#p-role').text(u.role); $('#p-active').text(u.is_active === false ? 'Disabled' : 'Active'); $('#p-since').text(u.created_at ? new Date(u.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '');
+  }).fail(e => UI.toast(e.message, 'error'));
+  $('#profile-form').on('submit', function (e) {
+    e.preventDefault();
+    const v = { full_name: $('#full_name').val().trim(), email: $('#email').val().trim() };
+    const ok = [UI.fieldError('full_name', v.full_name.length >= 2 ? '' : 'Enter your full name.'), UI.fieldError('email', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) ? '' : 'Enter a valid email address.')];
+    if (ok.includes(false)) return $('[aria-invalid="true"]').first().focus();
+    const $b = $('#submit'); UI.loading($b, true, 'Saving…');
+    // Only full_name and email are sent: role and is_active can never be changed from this form.
+    Api.request('PATCH', '/api/users/profile/me', { body: v }).done(() => {
+      Auth.setUser(Object.assign({}, Auth.user(), v)); $('#profile-btn').text(v.full_name); UI.toast('Profile updated.', 'success');
+    }).fail(er => {
+      if (er.status === 409) { UI.fieldError('email', 'That email is already used by another account. Choose a different one.'); $('#email').focus(); }
+      UI.toast(er.status === 409 ? 'Email already in use.' : er.message, 'error');
+    }).always(() => UI.loading($b, false));
+  });
+});
+</script></body></html>
