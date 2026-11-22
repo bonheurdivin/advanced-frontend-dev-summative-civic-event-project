@@ -29,13 +29,6 @@ BEGIN
     AND e.title IN ('Umuganda Community Clean-Up', 'Kigali Street Food Festival', 'Neighbourhood Health Check Day')
   ON CONFLICT (user_id, event_id) DO NOTHING;
 
-  -- Feedback on the past event (one per user per event)
-  INSERT INTO event_feedback (user_id, event_id, rating, comment)
-  SELECT u.id, e.id, 5, 'Well organised and the staff were friendly. The queue moved quickly.'
-  FROM users u, events e
-  WHERE u.email = 'test@user.com' AND e.title = 'Neighbourhood Health Check Day'
-  ON CONFLICT (user_id, event_id) DO NOTHING;
-
   -- Broadcast notifications (recipient_id NULL) linked to events through metadata.event_id
   INSERT INTO notifications (title, message, type, recipient_id, metadata, created_by)
   SELECT 'New event: ' || e.title, 'Registration is open. Location: ' || e.location || '.', 'event', NULL,
