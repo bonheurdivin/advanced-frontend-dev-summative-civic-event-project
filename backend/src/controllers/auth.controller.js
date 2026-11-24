@@ -55,6 +55,12 @@ export const login = async (req, res, next) => {
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) return res.status(401).json({ status: 401, message: 'Invalid credentials' });
 
+        // ADDED: block accounts an admin has disabled (checked after the password so
+        // only someone with the right credentials learns the account is disabled)
+        if (user.is_active === false) {
+            return res.status(403).json({ status: 403, message: 'Your account has been disabled. Please contact an administrator.' });
+        }
+
         const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
         return res.status(200).json({
