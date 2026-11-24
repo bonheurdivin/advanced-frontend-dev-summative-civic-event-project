@@ -18,7 +18,7 @@
       <div><label for="ends_at" class="font-bold">Ends</label><input id="ends_at" type="datetime-local" aria-describedby="ends_at-error" class="mt-1 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-civic aria-[invalid=true]:border-red-700"><p id="ends_at-error" class="mt-1 hidden text-sm text-red-800"></p></div></div>
     <label class="flex items-center gap-2"><input id="published" type="checkbox" checked class="h-4 w-4 accent-civic"><span class="font-bold">Published</span><span class="text-slate-700">(visible to everyone)</span></label>
     <div><label for="image" class="font-bold">Event image</label><input id="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-describedby="image-help image-error" class="mt-1 block w-full">
-      <p id="image-help" class="mt-1 text-sm text-slate-700">JPG, PNG, WebP or GIF, up to 5 MB.</p><p id="image-error" class="mt-1 hidden text-sm text-red-800"></p>
+      <p id="image-help" class="mt-1 text-sm text-slate-700">JPG, PNG, WebP or GIF, up to 2 MB.</p><p id="image-error" class="mt-1 hidden text-sm text-red-800"></p>
       <img id="preview" alt="Preview of the selected event image" class="mt-3 hidden max-h-56 rounded-lg"></div>
     <div id="progress-wrap" class="hidden"><div class="h-3 rounded bg-slate-200" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress" class="h-3 w-0 rounded bg-civic"></div></div></div>
     <div class="flex gap-3"><button id="submit" type="submit" class="rounded-lg bg-civic px-5 py-3 font-bold text-white hover:bg-civic-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-civic disabled:opacity-60">Save event</button>
@@ -31,7 +31,7 @@
 $(function () {
   // GUARD (admin only): create/edit events. Normal users are redirected to the dashboard with a 403 message.
   if (!Layout.init() || !Guards.requireAdmin()) return;
-  const id = new URLSearchParams(location.search).get('id'), MAX = 5 * 1024 * 1024, TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const id = new URLSearchParams(location.search).get('id'), MAX = 2 * 1024 * 1024, TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   const local = iso => { const d = new Date(iso), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
   if (id) {
     $('#page-title').text('Edit event');
@@ -45,7 +45,7 @@ $(function () {
     const f = this.files[0]; $('#image-error').addClass('hidden');
     if (!f) return;
     if (!TYPES.includes(f.type)) { $('#image-error').text('Choose a JPG, PNG, WebP or GIF image.').removeClass('hidden'); this.value = ''; return; }
-    if (f.size > MAX) { $('#image-error').text('That image is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 5 MB.').removeClass('hidden'); this.value = ''; return; }
+    if (f.size > MAX) { $('#image-error').text('That image is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 2 MB.').removeClass('hidden'); this.value = ''; return; }
     $('#preview').attr('src', URL.createObjectURL(f)).removeClass('hidden');
   });
   $('#event-form').on('submit', function (e) {

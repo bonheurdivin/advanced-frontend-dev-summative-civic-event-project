@@ -15,7 +15,7 @@
   <dialog id="dlg" aria-labelledby="dlg-h" class="w-[min(30rem,92vw)] rounded-2xl p-6 shadow-xl backdrop:bg-black/40"><h2 id="dlg-h" class="text-2xl font-bold">New announcement</h2>
     <form id="form" novalidate>
       <label for="f-title">Title</label><input id="f-title" type="text" aria-describedby="f-title-error"><p id="f-title-error" class="mt-1 hidden text-sm text-red-800"></p>
-      <label for="f-audio">Audio file</label><input id="f-audio" type="file" accept="audio/*" class="mt-1 block w-full" aria-describedby="f-audio-help f-audio-error"><p id="f-audio-help" class="mt-1 text-sm text-slate-700">MP3, WAV, OGG or M4A, up to 20 MB.</p><p id="f-audio-error" class="mt-1 hidden text-sm text-red-800"></p>
+      <label for="f-audio">Audio file</label><input id="f-audio" type="file" accept="audio/*" class="mt-1 block w-full" aria-describedby="f-audio-help f-audio-error"><p id="f-audio-help" class="mt-1 text-sm text-slate-700">MP3, WAV, OGG or M4A, up to 5 MB.</p><p id="f-audio-error" class="mt-1 hidden text-sm text-red-800"></p>
       <label class="flex items-center gap-2"><input id="f-pub" type="checkbox" checked class="h-4 w-4 accent-civic"> Publish immediately</label>
       <div id="prog-wrap" class="mt-3 hidden"><div class="h-3 rounded bg-slate-200" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="prog" class="h-3 w-0 rounded bg-civic"></div></div></div>
       <div class="mt-5 flex gap-3"><button id="save" type="submit" class="rounded-lg bg-civic px-5 py-2.5 font-bold text-white disabled:opacity-60">Upload</button><button id="cancel" type="button" class="rounded-lg border border-slate-500 px-5 py-2.5 font-bold">Cancel</button></div>
@@ -55,11 +55,11 @@ $(function () {
   });
   $('#new-btn').on('click', () => { $('#form')[0].reset(); UI.fieldError('f-title', ''); UI.fieldError('f-audio', ''); $('#prog-wrap').addClass('hidden'); dlg.showModal(); });
   $('#cancel').on('click', () => dlg.close());
-  $('#f-audio').on('change', function () { const e = this.files[0] ? Media.check(this.files[0], Media.AUDIO, 20) : ''; UI.fieldError('f-audio', e); if (e) this.value = ''; });
+  $('#f-audio').on('change', function () { const e = this.files[0] ? Media.check(this.files[0], Media.AUDIO, 5) : ''; UI.fieldError('f-audio', e); if (e) this.value = ''; });
   $('#form').on('submit', function (e) {                  // ADMIN-ONLY: upload (multipart, file key "audio")
     e.preventDefault();
     const t = $('#f-title').val().trim(), f = $('#f-audio')[0].files[0], want = $('#f-pub').is(':checked');
-    const ok = [UI.fieldError('f-title', t ? '' : 'Enter a title.'), UI.fieldError('f-audio', Media.check(f, Media.AUDIO, 20))];
+    const ok = [UI.fieldError('f-title', t ? '' : 'Enter a title.'), UI.fieldError('f-audio', Media.check(f, Media.AUDIO, 5))];
     if (ok.includes(false)) return $('#dlg [aria-invalid="true"]').first().focus();
     const fd = new FormData(); fd.append('title', t); fd.append('audio', f);
     const $b = $('#save'); UI.loading($b, true, 'Uploading…'); $('#prog-wrap').removeClass('hidden');

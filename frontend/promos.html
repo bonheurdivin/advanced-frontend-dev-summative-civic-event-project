@@ -15,9 +15,9 @@
   <dialog id="dlg" aria-labelledby="dlg-h" class="w-[min(32rem,92vw)] rounded-2xl p-6 shadow-xl backdrop:bg-black/40"><h2 id="dlg-h" class="text-2xl font-bold">New promo</h2>
     <form id="form" novalidate>
       <label for="f-title">Title</label><input id="f-title" type="text" aria-describedby="f-title-error"><p id="f-title-error" class="mt-1 hidden text-sm text-red-800"></p>
-      <label for="f-desc">Description</label><textarea id="f-desc" rows="2"></textarea>
-      <label for="f-cap">Caption text</label><textarea id="f-cap" rows="3" aria-describedby="f-cap-help"></textarea><p id="f-cap-help" class="mt-1 text-sm text-slate-700">Write what is said in the video. Each sentence becomes one caption.</p>
-      <label for="f-video">Video file</label><input id="f-video" type="file" accept="video/*" class="mt-1 block w-full" aria-describedby="f-video-help f-video-error"><p id="f-video-help" class="mt-1 text-sm text-slate-700">MP4, WebM or OGG, up to 50 MB.</p><p id="f-video-error" class="mt-1 hidden text-sm text-red-800"></p>
+      <label for="f-desc">Description</label><textarea id="f-desc" rows="2" aria-describedby="f-desc-error"></textarea><p id="f-desc-error" class="mt-1 hidden text-sm text-red-800"></p>
+      <label for="f-cap">Caption text</label><textarea id="f-cap" rows="3" aria-describedby="f-cap-help f-cap-error"></textarea><p id="f-cap-error" class="mt-1 hidden text-sm text-red-800"></p><p id="f-cap-help" class="mt-1 text-sm text-slate-700">Write what is said in the video. Each sentence becomes one caption.</p>
+      <label for="f-video">Video file</label><input id="f-video" type="file" accept="video/*" class="mt-1 block w-full" aria-describedby="f-video-help f-video-error"><p id="f-video-help" class="mt-1 text-sm text-slate-700">MP4, WebM or OGG, up to 8 MB.</p><p id="f-video-error" class="mt-1 hidden text-sm text-red-800"></p>
       <label class="flex items-center gap-2"><input id="f-pub" type="checkbox" checked class="h-4 w-4 accent-civic"> Published</label>
       <div id="prog-wrap" class="mt-3 hidden"><div class="h-3 rounded bg-slate-200" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="prog" class="h-3 w-0 rounded bg-civic"></div></div></div>
       <div class="mt-5 flex gap-3"><button id="save" type="submit" class="rounded-lg bg-civic px-5 py-2.5 font-bold text-white disabled:opacity-60">Save</button><button id="cancel" type="button" class="rounded-lg border border-slate-500 px-5 py-2.5 font-bold">Cancel</button></div>
@@ -62,19 +62,20 @@ $(function () {
     Api.request('DELETE', '/api/promos/' + id).done(() => { UI.toast('Promo deleted.', 'success'); bust(); }).fail(e => UI.toast(e.message, 'error'));
   }).on('click', '.edit', function () { open(items.find(i => i.id === $(this).data('id'))); });
   function open(p) {
-    editId = p ? p.id : null; $('#form')[0].reset(); ['f-title', 'f-video'].forEach(i => UI.fieldError(i, '')); $('#prog-wrap').addClass('hidden');
-    $('#dlg-h').text(p ? 'Edit promo' : 'New promo'); $('#f-video-help').text(p ? 'Leave empty to keep the current video. MP4, WebM or OGG, up to 50 MB.' : 'MP4, WebM or OGG, up to 50 MB.');
+    editId = p ? p.id : null; $('#form')[0].reset(); ['f-title', 'f-desc', 'f-cap', 'f-video'].forEach(i => UI.fieldError(i, '')); $('#prog-wrap').addClass('hidden');
+    $('#dlg-h').text(p ? 'Edit promo' : 'New promo'); $('#f-video-help').text(p ? 'Leave empty to keep the current video. MP4, WebM or OGG, up to 8 MB.' : 'MP4, WebM or OGG, up to 8 MB.');
     if (p) { $('#f-title').val(p.title); $('#f-desc').val(p.description); $('#f-cap').val(p.caption_text); $('#f-pub').prop('checked', !!p.published); }
     dlg.showModal();
   }
   $('#new-btn').on('click', () => open(null)); $('#cancel').on('click', () => dlg.close());
-  $('#f-video').on('change', function () { const e = this.files[0] ? Media.check(this.files[0], Media.VIDEO, 50) : ''; UI.fieldError('f-video', e); if (e) this.value = ''; });
+  $('#f-video').on('change', function () { const e = this.files[0] ? Media.check(this.files[0], Media.VIDEO, 8) : ''; UI.fieldError('f-video', e); if (e) this.value = ''; });
   $('#form').on('submit', function (e) {            // ADMIN-ONLY: create (POST) or edit (PUT), multipart with file key "video"
     e.preventDefault();
-    const t = $('#f-title').val().trim(), f = $('#f-video')[0].files[0], want = $('#f-pub').is(':checked');
-    const ok = [UI.fieldError('f-title', t ? '' : 'Enter a title.'), UI.fieldError('f-video', f || editId ? (f ? Media.check(f, Media.VIDEO, 50) : '') : 'Choose a video file.')];
+    const t = $('#f-title').val().trim(), d = $('#f-desc').val().trim(), c = $('#f-cap').val().trim(), f = $('#f-video')[0].files[0], want = $('#f-pub').is(':checked');
+    // The backend rejects empty description or caption text, so require them here too.
+    const ok = [UI.fieldError('f-title', t ? '' : 'Enter a title.'), UI.fieldError('f-desc', d ? '' : 'Enter a description.'), UI.fieldError('f-cap', c ? '' : 'Enter the caption text.'), UI.fieldError('f-video', f || editId ? (f ? Media.check(f, Media.VIDEO, 8) : '') : 'Choose a video file.')];
     if (ok.includes(false)) return $('#dlg [aria-invalid="true"]').first().focus();
-    const fd = new FormData(); fd.append('title', t); fd.append('description', $('#f-desc').val().trim()); fd.append('caption_text', $('#f-cap').val().trim()); if (f) fd.append('video', f);
+    const fd = new FormData(); fd.append('title', t); fd.append('description', d); fd.append('caption_text', c); if (f) fd.append('video', f);
     const $b = $('#save'); UI.loading($b, true, 'Saving…'); if (f) $('#prog-wrap').removeClass('hidden');
     Api.request(editId ? 'PUT' : 'POST', editId ? '/api/promos/' + editId : '/api/promos', { formData: fd, onProgress: p => { $('#prog').css('width', p * 100 + '%'); $('[role=progressbar]').attr('aria-valuenow', Math.round(p * 100)); } })
       .then(r => { const d = r.data || {}, id = d.id || editId; return id && (editId ? !!(items.find(i => i.id === id) || {}).published : !!d.published) !== want ? setPub(id, want) : r; })

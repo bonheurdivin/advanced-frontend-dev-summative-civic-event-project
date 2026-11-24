@@ -23,14 +23,15 @@ $(function () {
   // GUARD (admin only): the whole page. Normal users are redirected to the dashboard with a 403 message.
   if (!Layout.init() || !Guards.requireAdmin()) return;
   const me = (Auth.user() || {}).id; let users = [];
-  const active = u => u.is_active !== false;
+  // Read the status whichever field name the API uses (is_active / isActive / status).
+  const active = u => u.is_active !== undefined ? !!u.is_active : u.isActive !== undefined ? !!u.isActive : u.status ? u.status === 'active' : true;
   function render() {
     const q = $('#u-q').val().toLowerCase(), l = users.filter(u => !q || (u.full_name + ' ' + u.email).toLowerCase().includes(q));
     $('#status').text(l.length + (l.length === 1 ? ' user' : ' users'));
     $('#rows').html(l.length ? l.map(u => '<tr class="border-t border-slate-200"><td class="p-3 font-bold">' + UI.esc(u.full_name) + '</td><td class="p-3">' + UI.esc(u.email) + '</td><td class="p-3 capitalize">' + UI.esc(u.role) + '</td>'
       + '<td class="p-3"><span class="rounded px-2 py-0.5 text-sm font-bold ' + (active(u) ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900') + '">' + (active(u) ? 'Active' : 'Disabled') + '</span></td>'
       + '<td class="p-3"><button class="view mr-2 rounded-lg border border-slate-500 px-3 py-1.5 font-bold" data-id="' + u.id + '">View</button>'
-      + (u.id === me ? '<span class="text-sm text-slate-700">You</span>' : '<button class="tog rounded-lg border px-3 py-1.5 font-bold ' + (active(u) ? 'border-red-700 text-red-800' : 'border-green-700 text-green-900') + '" data-id="' + u.id + '">' + (active(u) ? 'Disable' : 'Enable') + '</button>') + '</td></tr>').join('')
+      + (u.id === me ? '<span class="text-sm text-slate-700">(you)</span>' : '<button class="tog rounded-lg border px-3 py-1.5 font-bold ' + (active(u) ? 'border-red-700 text-red-800' : 'border-green-700 text-green-900') + '" data-id="' + u.id + '">' + (active(u) ? 'Disable' : 'Enable') + '</button>') + '</td></tr>').join('')
       : '<tr><td colspan="5" class="p-6 text-center">No users match your search.</td></tr>');
   }
   function load() {
@@ -42,9 +43,14 @@ $(function () {
   $('#rows').on('click', '.tog', function () {          // ADMIN-ONLY: enable/disable. No role-change control exists anywhere in the UI.
     const u = users.find(x => x.id === $(this).data('id')), on = !active(u);
     if (!confirm((on ? 'Enable ' : 'Disable ') + u.full_name + '?')) return;
-    const prev = u.is_active; u.is_active = on; render();                                              // optimistic
-    Api.request('PATCH', '/api/users/' + u.id + (on ? '/enable' : '/disable')).done(() => UI.toast(u.full_name + (on ? ' enabled.' : ' disabled.'), 'success'))
-      .fail(e => { u.is_active = prev; render(); UI.toast(e.message, 'error'); });
+    $(this).prop('disabled', true).text('Saving…');
+    Api.request('PATCH', '/api/users/' + u.id + (on ? '/enable' : '/disable'))
+      .then(() => Api.request('GET', '/api/users/' + u.id))                       // re-read the REAL state from the server instead of assuming it worked
+      .done(r => {
+        const s = r.data && r.data.user ? r.data.user : r.data; console.log('[users] server state after toggle:', s); Object.assign(u, s); render();
+        if (active(u) !== on) UI.toast('The server accepted the request but the account is still ' + (active(u) ? 'active' : 'disabled') + '.', 'error');
+        else UI.toast(u.full_name + (on ? ' enabled.' : ' disabled.'), 'success');
+      }).fail(e => { render(); UI.toast(e.message, 'error'); });
   }).on('click', '.view', function () {
     Api.request('GET', '/api/users/' + $(this).data('id')).done(r => {
       const u = r.data && r.data.user ? r.data.user : r.data;
